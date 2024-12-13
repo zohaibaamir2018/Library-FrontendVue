@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Activity Spot</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <link rel="stylesheet" href="index.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" />
+</head>
+<body>
+    <div id="app">
+        <main>
+            <!-- Header Section -->
+            <header>
+                <div class="header-logo">
+                    <img src="Images/After school program logo.webp" alt="The Activity Spot logo" />
+                    <div class="header-title">The Activity Spot</div>
+                </div>
+                <div class="search-container" v-if="currentView === 'products'">
+                    <input type="text" v-model="searchQuery" placeholder="Search for activities..." class="search-input" />
+                    <button @click="goToCheckout" class="cart-button" :disabled="cart.length === 0">
+                        {{ cartItemCount }} Checkout
+                    </button>
+                </div>
+            </header>
+
+            <!-- Products View -->
+            <div v-if="currentView === 'products'">
+                <div class="sorting-controls">
+                    <label for="sort-attribute">Sort By:</label>
+                    <select id="sort-attribute" v-model="sortAttribute">
+                        <option value="name">Name</option>
+                        <option value="price">Price</option>
+                        <option value="availableInventory">Availability</option>
+                        <option value="location">Location</option>
+                    </select>
+                    <label for="sort-order">Order:</label>
+                    <select id="sort-order" v-model="sortOrder">
+                        <option value="asc">Ascending</option>
+                        <option value="desc">Descending</option>
+                    </select>
+                    <button @click="sortProducts">Sort</button>
+                </div>
+
+                <div class="product-list">
+                    <div v-for="(product, index) in filteredProducts" :key="index" class="product">
+                        <img :src="product.image" alt="Product Image" />
+                        <div class="product-info">
+                            <h3 v-text="product.name"></h3>
+                            <p v-text="'Location: ' + product.location"></p>
+                            <p class="price" v-text="'$' + product.price"></p>
+                            <p v-text="product.availableInventory + ' available'"></p>
+                            <div class="rating">
+                                <span v-for="star in 5" :key="star" v-html="getStar(star, product.rating)"></span>
+                            </div>
+                        </div>
+                        <div>
+                            <button @click="addToCart(product.id)" v-if="product.availableInventory > 0">Add to Cart</button>
+                            <button disabled v-else>No Spaces</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Checkout View -->
+            <div v-else-if="currentView === 'checkout'" class="checkout-container">
+                <h2>Your Cart</h2>
+
+                <!-- Cart Items -->
+                <div v-if="cart.length > 0">
+                    <div v-for="(item, index) in cart" :key="index" class="product-item">
+                        <img :src="item.image" alt="Product Image" />
+                        <div class="product-details">
+                            <h4 v-text="item.name"></h4>
+                            <p v-text="'Location: ' + item.location"></p>
+                            <p v-text="'Price: $' + item.price + ' x ' + item.quantity + ' = $' + (item.price * item.quantity)"></p>
+                            <button @click="removeFromCart(index)">Remove</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Customer Information -->
+                <div class="customer-info">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" v-model="customer.name" placeholder="Enter your name" required />
+
+                    <label for="email">Email</label>
+                    <input type="email" id="email" v-model="customer.email" placeholder="Enter your email" required />
+
+                    <label for="address">Address</label>
+                    <textarea id="address" v-model="customer.address" placeholder="Enter your address" required></textarea>
+                </div>
+
+                <!-- Cart Empty Message -->
+                <p v-else>Your cart is empty.</p>
+
+                <!-- Buttons -->
+                <div class="button-container">
+                    <button id="submit-button" @click="submitOrder" v-if="cart.length > 0">Submit Order</button>
+                    <button class="go-back-button" @click="switchToProducts">Go Back</button>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script type="module">
+        import { products } from './products.js';
+
+        new Vue({
+            el: "#app",
+            data() {
+                return {
+                    currentView: "products", // Tracks the current view: 'products' or 'checkout'
+                    products: products, // Products list imported from products.js
+                    cart: JSON.parse(localStorage.getItem("cartItems")) || [], // Cart data stored in localStorage
+                    searchQuery: "",
+                    sortAttribute: "price",
+                    sortOrder: "asc",
+                    customer: {
+                        name: "",
+                        email: "",
+                        address: ""
+                    }
+                };
+            },
+            computed: {
+                cartItemCount() {
+                    return this.cart.reduce((total, item) => total + item.quantity, 0);
+                },
+                filteredProducts() {
+                    const lowerCaseQuery = this.searchQuery.toLowerCase();
+                    return this.products.filter(product => {
+                        return (
+                            product.name.toLowerCase().includes(lowerCaseQuery) ||
+                            product.location.toLowerCase().includes(lowerCaseQuery) ||
+                            product.price.toString().includes(lowerCaseQuery) ||
+                            product.availableInventory.toString().includes(lowerCaseQuery)
+                        );
+                    });
+                },
+            },
+            methods: {
+                addToCart(productId) {
+                    const product = this.products.find(p => p.id === productId);
+                    if (product && product.availableInventory > 0) {
+                        const cartItem = this.cart.find(item => item.id === productId);
+                        if (!cartItem) {
+                            this.cart.push({ ...product, quantity: 1 });
+                        } else {
+                            cartItem.quantity++;
+                        }
+                        product.availableInventory--;
+                    }
+                    localStorage.setItem("cartItems", JSON.stringify(this.cart));
+                },
+                removeFromCart(index) {
+                    const item = this.cart[index];
+                    this.products.find(p => p.id === item.id).availableInventory += item.quantity;
+                    this.cart.splice(index, 1);
+                    localStorage.setItem("cartItems", JSON.stringify(this.cart));
+                },
+                switchToProducts() {
+                    this.currentView = "products";
+                },
+                goToCheckout() {
+                    this.currentView = "checkout";
+                },
+                submitOrder() {
+                    if (!this.customer.name || !this.customer.email || !this.customer.address) {
+                        alert("Please fill in your details before submitting.");
+                        return;
+                    }
+
+                    alert(`Order submitted for ${this.customer.name}!`);
+
+                    // Reset cart and customer data
+                    this.cart = [];
+                    this.customer = { name: "", email: "", address: "" };
+
+                    localStorage.removeItem("cartItems");
+                    this.switchToProducts();
+                },
+                sortProducts() {
+                    this.products.sort((a, b) => {
+                        let comparison = 0;
+                        if (this.sortAttribute === "name" || this.sortAttribute === "location") {
+                            comparison = a[this.sortAttribute].localeCompare(b[this.sortAttribute]);
+                        } else {
+                            comparison = a[this.sortAttribute] - b[this.sortAttribute];
+                        }
+                        return this.sortOrder === "asc" ? comparison : -comparison;
+                    });
+                },
+                getStar(star, rating) {
+                    return star <= rating ? "&#9733;" : "&#9734;";
+                },
+            },
+        });
+    </script>
+</body>
+</html>
